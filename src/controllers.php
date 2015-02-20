@@ -1,9 +1,33 @@
 <?php
 
+use DDesrosiers\SilexAnnotations\AnnotationServiceProvider;
+use JDesrosiers\Silex\Provider\CorsServiceProvider;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Validator\Constraints as Assert;
+
+/** @var \Silex\Application $app */
+
+$app->register(new AnnotationServiceProvider(), [
+    "annot.cache" => new \Doctrine\Common\Cache\ArrayCache(),
+    "annot.controllers" => [
+        'api' => [
+            'App\\Controller\\IndexController'
+        ]
+    ]
+]);
+
+$app->register(new CorsServiceProvider(), [
+    'cors.allowMethods' => 'POST,GET,PUT,DELETE,OPTIONS',
+    'cors.allowOrigin' => 'http://127.0.0.1:9000 '
+        . 'http://127.0.0.1:9001 '
+        . 'http://localhost:9000 '
+        . 'http://localhost '
+        . 'http://127.0.0.1 '
+        . 'http://localhost:8080 '
+]);
+
 
 $app->match('/', function () use ($app) {
     $app['session']->getFlashBag()->add('warning', 'Warning flash message');
@@ -160,5 +184,7 @@ $app->error(function (\Exception $e, $code) use ($app) {
 
     return new Response($message, $code);
 });
+
+$app->after($app["cors"]);
 
 return $app;

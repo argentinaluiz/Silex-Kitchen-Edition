@@ -1,11 +1,6 @@
 <?php
 
-// Local
-$app['locale'] = 'fr';
-$app['session.default_locale'] = $app['locale'];
-$app['translator.messages'] = array(
-    'fr' => __DIR__.'/../resources/locales/fr.yml',
-);
+date_default_timezone_set('America/Sao_Paulo');
 
 // Cache
 $app['cache.path'] = __DIR__ . '/../cache';

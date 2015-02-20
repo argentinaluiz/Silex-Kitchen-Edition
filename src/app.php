@@ -1,19 +1,26 @@
 <?php
 
+use Dflydev\Silex\Provider\DoctrineOrm\DoctrineOrmServiceProvider;
 use Silex\Provider\FormServiceProvider;
 use Silex\Provider\HttpCacheServiceProvider;
 use Silex\Provider\MonologServiceProvider;
 use Silex\Provider\SecurityServiceProvider;
 use Silex\Provider\ServiceControllerServiceProvider;
 use Silex\Provider\SessionServiceProvider;
-use Silex\Provider\TranslationServiceProvider;
 use Silex\Provider\TwigServiceProvider;
 use Silex\Provider\UrlGeneratorServiceProvider;
 use Silex\Provider\ValidatorServiceProvider;
 use Silex\Provider\WebProfilerServiceProvider;
 use SilexAssetic\AsseticServiceProvider;
 use Symfony\Component\Security\Core\Encoder\PlaintextPasswordEncoder;
-use Symfony\Component\Translation\Loader\YamlFileLoader;
+use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntityValidator;
+use Symfony\Bridge\Doctrine\Form\DoctrineOrmExtension;
+
+/** @var \Silex\Application $app */
+
+$app['security.encoder.digest'] = $app->share(function ($app) {
+    return new PlaintextPasswordEncoder();
+});
 
 $app->register(new HttpCacheServiceProvider());
 
@@ -26,57 +33,44 @@ $app->register(new SecurityServiceProvider(), array(
     'security.firewalls' => array(
         'admin' => array(
             'pattern' => '^/',
-            'form'    => array(
-                'login_path'         => '/login',
+            'form' => array(
+                'login_path' => '/login',
                 'username_parameter' => 'form[username]',
                 'password_parameter' => 'form[password]',
             ),
-            'logout'    => true,
+            'logout' => true,
             'anonymous' => true,
-            'users'     => $app['security.users'],
+            'users' => $app['security.users'],
         ),
     ),
 ));
 
-$app['security.encoder.digest'] = $app->share(function ($app) {
-    return new PlaintextPasswordEncoder();
-});
-
-$app->register(new TranslationServiceProvider());
-$app['translator'] = $app->share($app->extend('translator', function ($translator, $app) {
-    $translator->addLoader('yaml', new YamlFileLoader());
-
-    $translator->addResource('yaml', __DIR__.'/../resources/locales/fr.yml', 'fr');
-
-    return $translator;
-}));
-
 $app->register(new MonologServiceProvider(), array(
-    'monolog.logfile' => __DIR__.'/../resources/log/app.log',
-    'monolog.name'    => 'app',
-    'monolog.level'   => 300 // = Logger::WARNING
+    'monolog.logfile' => __DIR__ . '/../resources/log/app.log',
+    'monolog.name' => 'app',
+    'monolog.level' => 300 // = Logger::WARNING
 ));
 
 $app->register(new TwigServiceProvider(), array(
-    'twig.options'        => array(
-        'cache'            => isset($app['twig.options.cache']) ? $app['twig.options.cache'] : false,
+    'twig.options' => array(
+        'cache' => isset($app['twig.options.cache']) ? $app['twig.options.cache'] : false,
         'strict_variables' => true
     ),
     'twig.form.templates' => array('form_div_layout.html.twig', 'common/form_div_layout.html.twig'),
-    'twig.path'           => array(__DIR__ . '/../resources/views')
+    'twig.path' => array(__DIR__ . '/../resources/views')
 ));
 
 if ($app['debug'] && isset($app['cache.path'])) {
     $app->register(new ServiceControllerServiceProvider());
     $app->register(new WebProfilerServiceProvider(), array(
-        'profiler.cache_dir' => $app['cache.path'].'/profiler',
+        'profiler.cache_dir' => $app['cache.path'] . '/profiler',
     ));
 }
 
 if (isset($app['assetic.enabled']) && $app['assetic.enabled']) {
     $app->register(new AsseticServiceProvider(), array(
         'assetic.options' => array(
-            'debug'            => $app['debug'],
+            'debug' => $app['debug'],
             'auto_dump_assets' => $app['debug'],
         )
     ));
@@ -84,7 +78,7 @@ if (isset($app['assetic.enabled']) && $app['assetic.enabled']) {
     $app['assetic.filter_manager'] = $app->share(
         $app->extend('assetic.filter_manager', function ($fm, $app) {
             $fm->set('lessphp', new Assetic\Filter\LessphpFilter());
-
+            $fm->set('cssmin', new Assetic\Filter\CssMinFilter());
             return $fm;
         })
     );
@@ -113,5 +107,60 @@ if (isset($app['assetic.enabled']) && $app['assetic.enabled']) {
 }
 
 $app->register(new Silex\Provider\DoctrineServiceProvider());
+
+$app->register(new DoctrineOrmServiceProvider, array(
+    "orm.proxies_dir" => __DIR__ . "/../resources/doctrine/proxy",
+    "orm.em.options" => array(
+        "mappings" => array(
+            array(
+                "type" => "annotation",
+                "namespace" => "App\Entity",
+                "path" => __DIR__ . "/App/Entity",
+                "use_simple_annotation_reader" => false
+            ),
+        ),
+    ),
+));
+
+$app['orm.em.registry'] = $app->share(function () use ($app) {
+    $manager = new ManagerRegistry(
+        null, array(), array('default' => 'orm.em'), null, null, '\Doctrine\ORM\Proxy\Proxy'
+    );
+    $manager->setContainer($app);
+    return $manager;
+});
+
+$app['doctrine.orm.validator.unique'] = $app->share(function () use ($app) {
+    return new UniqueEntityValidator($app['orm.em.registry']);
+});
+
+$app['form.extensions'] = $app->share($app->extend('form.extensions', function ($extensions) use ($app) {
+    $extensions[] = new DoctrineOrmExtension($app['orm.em.registry']);
+
+    return $extensions;
+}));
+
+$app->register(new Silex\Provider\SwiftmailerServiceProvider());
+$app['swiftmailer.options'] = array(
+    'host' => 'host',
+    'port' => '465',
+    'username' => 'username',
+    'password' => 'password',
+    'encryption' => 'ssl',
+    'auth_mode' => 'login'
+);
+
+$app->register(new ValidatorServiceProvider(), [
+    'validator.validator_service_ids' => [
+        'doctrine.orm.validator.unique' => 'doctrine.orm.validator.unique'
+    ]
+]);
+
+$app->register(new MonologServiceProvider(), array(
+    'monolog.logfile' => __DIR__ . '/../resources/log/app.log',
+    'monolog.name' => 'app',
+    'monolog.level' => 300 // = Logger::WARNING
+));
+
 
 return $app;

@@ -38,7 +38,8 @@
     "require-dev": {
         "doctrine/migrations": "dev-master",
         "nelmio/alice": "dev-master",
-        "doctrine/data-fixtures": "dev-master"
+        "doctrine/data-fixtures": "dev-master",
+        "argentinaluiz/js-silex-fixtures": "dev-master"
     },
     "scripts": {
         "post-install-cmd": "php src/script-ini.php",
