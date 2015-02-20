@@ -40,8 +40,8 @@
         "doctrine/data-fixtures": "dev-master"
     },
     "scripts": {
-        "post-install-cmd": "php src/script.php",
-        "post-update-cmd": "php src/script.php"
+        "post-install-cmd": "php src/script-ini.php",
+        "post-update-cmd": "php src/script-ini.php"
     },
     "autoload": {
         "psr-0": {
